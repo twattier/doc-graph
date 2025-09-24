@@ -6,11 +6,10 @@ DocGraph is an AI-powered document insight engine that helps you extract knowled
 
 ### Prerequisites
 
-- **Node.js** 18+
-- **Python** 3.11+
 - **Docker** and **Docker Compose**
+- **Git** for repository operations
 
-### Development Setup
+### Development Setup (Docker-Only)
 
 1. **Clone the repository**
    ```bash
@@ -18,24 +17,26 @@ DocGraph is an AI-powered document insight engine that helps you extract knowled
    cd doc-graph
    ```
 
-2. **Run the setup script**
+2. **Copy environment configuration**
    ```bash
-   ./setup-dev.sh
+   cp .env.example .env
    ```
 
-3. **Start the development servers**
+3. **Start the full application stack**
    ```bash
-   # Terminal 1: Start frontend
-   npm run dev --workspace=apps/web
+   # Start all services (databases + applications)
+   docker-compose up --build
 
-   # Terminal 2: Start backend
-   npm run dev --workspace=apps/api
+   # Or run in background
+   docker-compose up -d --build
    ```
 
 4. **Access the application**
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:8000
    - API Documentation: http://localhost:8000/docs
+   - Neo4j Browser: http://localhost:7475
+   - Database services running on configured ports
 
 ## 🏗️ Architecture
 
@@ -70,8 +71,8 @@ doc-graph/
 - pytest for testing
 
 **Development:**
-- Nx for monorepo management
-- Docker Compose for local services
+- Docker-first development environment
+- Docker Compose for complete application stack
 - GitHub Actions for CI/CD
 
 ## 📊 Database Services
@@ -93,54 +94,42 @@ The application uses three database services:
 - **Access**: localhost:6380
 - **Password**: secure_dev_redis_password
 
-## 🛠️ Development Commands
+## 🛠️ Development Commands (Docker-Based)
 
-### Root Level Commands
+### Application Management
 ```bash
-# Install all dependencies
-npm install
+# Start all services
+docker-compose up --build
 
-# Run all services
-npm run dev
+# Start in background
+docker-compose up -d --build
 
-# Run all tests
-npm run test
+# Stop all services
+docker-compose down
 
-# Build all projects
-npm run build
+# View logs
+docker-compose logs [web|api|postgres|neo4j|redis]
 
-# Lint all projects
-npm run lint
+# Restart specific service
+docker-compose restart [web|api]
 
-# Format code
-npm run format
+# Rebuild and restart service
+docker-compose up --build [web|api]
 ```
 
-### Frontend Commands
+### Development Workflow
 ```bash
-# Start frontend development server
-npm run dev --workspace=apps/web
+# View real-time logs for debugging
+docker-compose logs -f api
+docker-compose logs -f web
 
-# Build frontend for production
-npm run build --workspace=apps/web
+# Execute commands inside containers
+docker-compose exec api python -m pytest tests/
+docker-compose exec web npm run test
 
-# Run frontend tests
-npm run test --workspace=apps/web
-```
-
-### Backend Commands
-```bash
-# Start backend development server
-npm run dev --workspace=apps/api
-
-# Install Python dependencies
-cd apps/api && pip install -r requirements.txt
-
-# Run backend tests
-npm run test --workspace=apps/api
-
-# Type checking with mypy
-npm run lint --workspace=apps/api
+# Access container shell for debugging
+docker-compose exec api bash
+docker-compose exec web sh
 ```
 
 ### Database Management
