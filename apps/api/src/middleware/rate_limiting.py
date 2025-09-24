@@ -11,7 +11,7 @@ import redis.asyncio as redis
 import asyncio
 import logging
 
-from ..config import settings
+from ..config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class RateLimiter:
 
     def __init__(self, redis_url: str = None):
         """Initialize rate limiter with Redis connection."""
-        self.redis_url = redis_url or settings.redis_url
+        self.redis_url = redis_url or get_settings().redis_url
         self._redis_pool = None
 
     async def get_redis_pool(self) -> redis.Redis:

@@ -143,7 +143,12 @@ async def health_check_postgres() -> dict:
     Check PostgreSQL connection health.
     """
     try:
-        async with get_postgres_session() as session:
+        # Initialize connection if needed
+        if not _postgres_session_factory:
+            await init_postgres_connection()
+
+        # Create a direct session for health check
+        async with _postgres_session_factory() as session:
             result = await session.execute(text("SELECT 1"))
             return {
                 "status": "healthy",
