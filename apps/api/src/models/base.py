@@ -35,7 +35,7 @@ class HealthCheckResponse(BaseSchema):
     Health check response schema.
     """
     status: str = Field(..., description="Service status")
-    timestamp: datetime = Field(..., description="Check timestamp")
+    timestamp: str = Field(..., description="Check timestamp")
     version: str = Field(..., description="API version")
     services: dict = Field(..., description="Service status details")
 

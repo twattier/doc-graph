@@ -6,7 +6,7 @@ import uuid
 import asyncio
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 
@@ -25,6 +25,7 @@ from ..services.git_service import GitService, GitOperationError
 from ..services.repository_service import RepositoryService
 from ..services.processing_service import RepositoryProcessor
 from .users import get_current_user
+from ..middleware.rate_limiting import apply_rate_limit
 
 router = APIRouter(prefix="/api/repositories", tags=["repositories"])
 
@@ -153,6 +154,7 @@ async def import_repository_background(import_id: str, url: str, repository_id: 
 @router.post("/import", response_model=RepositoryImportResponse)
 async def import_repository(
     request: RepositoryImportRequest,
+    http_request: Request,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_async_db),
     current_user = Depends(get_current_user),
@@ -163,6 +165,15 @@ async def import_repository(
     This endpoint validates the repository URL and starts a background import process.
     Use the returned import_id to check the progress via GET /repositories/{import_id}/status
     """
+    # Apply rate limiting for repository imports (10 per minute)
+    await apply_rate_limit(
+        http_request,
+        current_user["id"],
+        limit=10,
+        window=60,
+        endpoint_key="repository_import"
+    )
+
     # Validate URL format
     if not git_service.validate_repository_url(request.url):
         raise HTTPException(

@@ -183,7 +183,8 @@ async def health_check_neo4j() -> dict:
     Check Neo4j connection health.
     """
     try:
-        async with get_neo4j_session() as session:
+        session = await get_neo4j_session()
+        try:
             result = await session.run("RETURN 1 as n")
             await result.single()
             return {
@@ -191,6 +192,8 @@ async def health_check_neo4j() -> dict:
                 "response_time_ms": 8,
                 "details": "Connection successful"
             }
+        finally:
+            await session.close()
     except Exception as e:
         return {
             "status": "unhealthy",

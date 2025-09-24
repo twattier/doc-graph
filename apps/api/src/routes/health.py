@@ -40,7 +40,7 @@ async def health_check():
 
         health_response = HealthCheckResponse(
             status=overall_status,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.utcnow().isoformat(),
             version="0.1.0",
             services={
                 "database": database_health,
