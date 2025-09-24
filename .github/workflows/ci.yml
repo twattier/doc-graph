@@ -154,6 +154,7 @@ jobs:
           NEO4J_PASSWORD: test_password
           REDIS_URL: redis://localhost:${{ env.CI_REDIS_PORT }}
           JWT_SECRET: test-secret-key
+          TEST_MODE: 1
 
       - name: Upload coverage to Codecov
         if: success()

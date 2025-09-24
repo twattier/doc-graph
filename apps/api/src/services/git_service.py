@@ -5,6 +5,7 @@ Git repository operations service for cloning and managing repositories.
 import os
 import shutil
 import asyncio
+import tempfile
 from typing import Optional, Dict, Any, Callable, List, Tuple
 from urllib.parse import urlparse
 import logging
@@ -35,9 +36,16 @@ class GitOperationError(Exception):
 class GitService:
     """Service for Git repository operations."""
 
-    def __init__(self, base_storage_path: str = "/app/data/repositories"):
+    def __init__(self, base_storage_path: Optional[str] = None):
         """Initialize the Git service with a base storage path."""
-        self.base_storage_path = base_storage_path
+        if base_storage_path is None:
+            # Use temp directory for tests, /app/data/repositories for production
+            if os.environ.get('PYTEST_CURRENT_TEST') or os.environ.get('TEST_MODE'):
+                self.base_storage_path = tempfile.mkdtemp(prefix='git_service_test_')
+            else:
+                self.base_storage_path = "/app/data/repositories"
+        else:
+            self.base_storage_path = base_storage_path
         self._ensure_storage_directory()
 
     def _ensure_storage_directory(self) -> None:
