@@ -106,6 +106,7 @@ services:
       - PYTHONPATH=/app/src
     volumes:
       - ./data/repositories:/app/data/repositories
+      - ./apps/api/tests:/app/tests
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${API_INTERNAL_PORT:-8000}/health"]
       interval: 10s

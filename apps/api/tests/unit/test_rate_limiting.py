@@ -86,13 +86,15 @@ class TestRateLimiter:
         mock_request.state = Mock()
 
         with patch('src.middleware.rate_limiting.rate_limiter') as mock_rate_limiter:
-            mock_rate_limiter.is_allowed.return_value = {
-                "allowed": True,
-                "limit": 10,
-                "remaining": 9,
-                "reset_time": int(time.time() + 60),
-                "retry_after": None
-            }
+            async def async_return(*args, **kwargs):
+                return {
+                    "allowed": True,
+                    "limit": 10,
+                    "remaining": 9,
+                    "reset_time": int(time.time() + 60),
+                    "retry_after": None
+                }
+            mock_rate_limiter.is_allowed.side_effect = async_return
 
             # Should not raise exception
             await apply_rate_limit(mock_request, "user123", limit=10, window=60)
@@ -110,13 +112,15 @@ class TestRateLimiter:
         mock_request.state = Mock()
 
         with patch('src.middleware.rate_limiting.rate_limiter') as mock_rate_limiter:
-            mock_rate_limiter.is_allowed.return_value = {
-                "allowed": False,
-                "limit": 10,
-                "remaining": 0,
-                "reset_time": int(time.time() + 60),
-                "retry_after": 60
-            }
+            async def async_return(*args, **kwargs):
+                return {
+                    "allowed": False,
+                    "limit": 10,
+                    "remaining": 0,
+                    "reset_time": int(time.time() + 60),
+                    "retry_after": 60
+                }
+            mock_rate_limiter.is_allowed.side_effect = async_return
 
             with pytest.raises(HTTPException) as exc_info:
                 await apply_rate_limit(mock_request, "user123", limit=10, window=60)
@@ -130,7 +134,17 @@ class TestRateLimiter:
     @pytest.mark.asyncio
     async def test_rate_limiter_key_generation(self, rate_limiter, mock_redis):
         """Test that different endpoint keys create different rate limit buckets."""
-        with patch.object(rate_limiter, 'get_redis_pool', return_value=mock_redis):
+        with patch('src.middleware.rate_limiting.rate_limiter') as mock_rate_limiter:
+            async def async_return(*args, **kwargs):
+                return {
+                    "allowed": True,
+                    "limit": 10,
+                    "remaining": 9,
+                    "reset_time": int(time.time() + 60),
+                    "retry_after": None
+                }
+            mock_rate_limiter.is_allowed.side_effect = async_return
+
             # First call for import endpoint
             await apply_rate_limit(
                 Mock(state=Mock()), "user123",
@@ -144,7 +158,10 @@ class TestRateLimiter:
             )
 
         # Verify different Redis keys were used
-        assert mock_redis.zremrangebyscore.call_count == 2
+        assert mock_rate_limiter.is_allowed.call_count == 2
+        call_args = [call[0] for call in mock_rate_limiter.is_allowed.call_args_list]
+        assert "rate_limit:repository_import:user123" in call_args[0]
+        assert "rate_limit:repository_api:user123" in call_args[1]
 
     @pytest.mark.unit
     @pytest.mark.asyncio

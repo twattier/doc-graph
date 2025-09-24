@@ -4,7 +4,7 @@ Rate limiting middleware for API endpoints.
 
 import time
 import json
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from fastapi import HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 import redis.asyncio as redis
@@ -14,6 +14,13 @@ import logging
 from ..config import get_settings
 
 logger = logging.getLogger(__name__)
+
+
+class RateLimitExceeded(HTTPException):
+    """Exception raised when rate limit is exceeded."""
+
+    def __init__(self, detail: Any = None, headers: Optional[dict] = None):
+        super().__init__(status_code=429, detail=detail, headers=headers)
 
 
 class RateLimiter:
@@ -68,9 +75,13 @@ class RateLimiter:
             # Set expiration
             pipeline.expire(key, window)
 
-            results = await pipeline.execute()
+            results = pipeline.execute()
+            if asyncio.iscoroutine(results):
+                results = await results
             current_requests = results[1]
 
+            # current_requests is the count BEFORE adding current request
+            # We allow if current_requests < limit (so adding one more is still within limit)
             allowed = current_requests < limit
 
             return {

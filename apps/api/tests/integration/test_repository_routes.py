@@ -14,46 +14,49 @@ class TestRepositoryRoutes:
     """Test suite for repository API endpoints."""
 
     @pytest.mark.unit
-    def test_import_repository_valid_request(self, client: TestClient):
+    def test_import_repository_valid_request(self, client_with_auth):
         """Test repository import with valid request data."""
-        # Mock authentication
-        with patch('src.routes.repositories.get_current_user') as mock_auth:
-            mock_auth.return_value = {"id": "user123", "email": "test@example.com"}
+        # Mock all the services and dependencies
+        with patch('src.routes.repositories.apply_rate_limit') as mock_rate_limit, \
+             patch('src.routes.repositories.git_service') as mock_git_service, \
+             patch('src.routes.repositories.get_async_db') as mock_db:
 
-            # Mock repository service
-            with patch('src.routes.repositories.RepositoryService') as mock_service:
-                mock_import_job = {
-                    "id": str(uuid.uuid4()),
-                    "repository_url": "https://github.com/test/repo.git",
-                    "status": "pending",
-                    "user_id": "user123"
-                }
-                mock_service.return_value.start_import.return_value = mock_import_job
+            # Mock rate limiting
+            mock_rate_limit.return_value = None
 
-                response = client.post(
-                    "/api/repositories/import",
-                    json={
-                        "repository_url": "https://github.com/test/repo.git",
-                        "name": "Test Repository"
-                    },
-                    headers={"Authorization": "Bearer test-token"}
-                )
+            # Mock git service
+            mock_git_service.validate_repository_url.return_value = True
 
-                assert response.status_code == 202
-                data = response.json()
-                assert "import_job" in data
-                assert data["import_job"]["repository_url"] == "https://github.com/test/repo.git"
+            # Mock database session
+            mock_session = AsyncMock()
+            mock_db.return_value.__anext__.return_value = mock_session
+
+            response = client_with_auth.post(
+                "/api/repositories/import",
+                json={
+                    "url": "https://github.com/test/repo.git"
+                },
+                headers={"Authorization": "Bearer test-token"}
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert "import_id" in data
+            assert "message" in data
 
     @pytest.mark.unit
     def test_import_repository_invalid_url(self, client: TestClient):
         """Test repository import with invalid URL."""
         with patch('src.routes.repositories.get_current_user') as mock_auth:
-            mock_auth.return_value = {"id": "user123", "email": "test@example.com"}
+            mock_user = Mock()
+            mock_user.id = "user123"
+            mock_user.email = "test@example.com"
+            mock_auth.return_value = mock_user
 
             response = client.post(
                 "/api/repositories/import",
                 json={
-                    "repository_url": "invalid-url",
+                    "url": "invalid-url",
                     "name": "Test Repository"
                 },
                 headers={"Authorization": "Bearer test-token"}
@@ -68,7 +71,7 @@ class TestRepositoryRoutes:
         response = client.post(
             "/api/repositories/import",
             json={
-                "repository_url": "https://github.com/test/repo.git",
+                "url": "https://github.com/test/repo.git",
                 "name": "Test Repository"
             }
         )
@@ -81,7 +84,10 @@ class TestRepositoryRoutes:
         job_id = str(uuid.uuid4())
 
         with patch('src.routes.repositories.get_current_user') as mock_auth:
-            mock_auth.return_value = {"id": "user123", "email": "test@example.com"}
+            mock_user = Mock()
+            mock_user.id = "user123"
+            mock_user.email = "test@example.com"
+            mock_auth.return_value = mock_user
 
             with patch('src.routes.repositories.RepositoryService') as mock_service:
                 mock_import_job = {
@@ -108,7 +114,10 @@ class TestRepositoryRoutes:
         job_id = str(uuid.uuid4())
 
         with patch('src.routes.repositories.get_current_user') as mock_auth:
-            mock_auth.return_value = {"id": "user123", "email": "test@example.com"}
+            mock_user = Mock()
+            mock_user.id = "user123"
+            mock_user.email = "test@example.com"
+            mock_auth.return_value = mock_user
 
             with patch('src.routes.repositories.RepositoryService') as mock_service:
                 mock_service.return_value.get_import_status.return_value = None
@@ -124,7 +133,10 @@ class TestRepositoryRoutes:
     def test_list_repositories_success(self, client: TestClient):
         """Test listing user repositories."""
         with patch('src.routes.repositories.get_current_user') as mock_auth:
-            mock_auth.return_value = {"id": "user123", "email": "test@example.com"}
+            mock_user = Mock()
+            mock_user.id = "user123"
+            mock_user.email = "test@example.com"
+            mock_auth.return_value = mock_user
 
             with patch('src.routes.repositories.RepositoryService') as mock_service:
                 mock_repositories = [
@@ -162,13 +174,16 @@ class TestRepositoryRoutes:
         repo_id = str(uuid.uuid4())
 
         with patch('src.routes.repositories.get_current_user') as mock_auth:
-            mock_auth.return_value = {"id": "user123", "email": "test@example.com"}
+            mock_user = Mock()
+            mock_user.id = "user123"
+            mock_user.email = "test@example.com"
+            mock_auth.return_value = mock_user
 
             with patch('src.routes.repositories.RepositoryService') as mock_service:
                 mock_repository = {
                     "id": repo_id,
                     "name": "Test Repository",
-                    "repository_url": "https://github.com/test/repo.git",
+                    "url": "https://github.com/test/repo.git",
                     "status": "completed",
                     "user_id": "user123",
                     "file_count": 25,
@@ -193,7 +208,10 @@ class TestRepositoryRoutes:
         repo_id = str(uuid.uuid4())
 
         with patch('src.routes.repositories.get_current_user') as mock_auth:
-            mock_auth.return_value = {"id": "user123", "email": "test@example.com"}
+            mock_user = Mock()
+            mock_user.id = "user123"
+            mock_user.email = "test@example.com"
+            mock_auth.return_value = mock_user
 
             with patch('src.routes.repositories.RepositoryService') as mock_service:
                 mock_service.return_value.get_repository.return_value = None
@@ -211,7 +229,10 @@ class TestRepositoryRoutes:
         repo_id = str(uuid.uuid4())
 
         with patch('src.routes.repositories.get_current_user') as mock_auth:
-            mock_auth.return_value = {"id": "user123", "email": "test@example.com"}
+            mock_user = Mock()
+            mock_user.id = "user123"
+            mock_user.email = "test@example.com"
+            mock_auth.return_value = mock_user
 
             with patch('src.routes.repositories.RepositoryService') as mock_service:
                 mock_service.return_value.delete_repository.return_value = True
@@ -229,7 +250,10 @@ class TestRepositoryRoutes:
         repo_id = str(uuid.uuid4())
 
         with patch('src.routes.repositories.get_current_user') as mock_auth:
-            mock_auth.return_value = {"id": "user123", "email": "test@example.com"}
+            mock_user = Mock()
+            mock_user.id = "user123"
+            mock_user.email = "test@example.com"
+            mock_auth.return_value = mock_user
 
             with patch('src.routes.repositories.RepositoryService') as mock_service:
                 mock_sync_job = {

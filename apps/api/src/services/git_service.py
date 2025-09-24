@@ -54,24 +54,85 @@ class GitService:
         Returns:
             bool: True if valid, False otherwise
         """
-        if not url or not url.strip():
+        if not url or not isinstance(url, str) or not url.strip():
             return False
 
         url = url.strip()
 
-        # Check for common Git URL patterns
-        valid_patterns = [
-            # HTTPS patterns
-            url.startswith('https://github.com/'),
-            url.startswith('https://gitlab.com/'),
-            url.startswith('https://bitbucket.org/'),
-            # SSH patterns
-            url.startswith('git@github.com:'),
-            url.startswith('git@gitlab.com:'),
-            url.startswith('git@bitbucket.org:'),
+        # Check for HTTPS patterns with proper repository structure
+        https_patterns = [
+            'https://github.com/',
+            'https://gitlab.com/',
+            'https://bitbucket.org/',
         ]
 
-        return any(valid_patterns)
+        # Check for SSH patterns with proper repository structure
+        ssh_patterns = [
+            'git@github.com:',
+            'git@gitlab.com:',
+            'git@bitbucket.org:',
+        ]
+
+        # Check if URL matches one of the valid hosting patterns
+        matches_pattern = any(url.startswith(pattern) for pattern in https_patterns + ssh_patterns)
+
+        if not matches_pattern:
+            return False
+
+        # For HTTPS URLs, validate the structure
+        if url.startswith('https://'):
+            try:
+                parsed = urlparse(url)
+                path_parts = parsed.path.strip('/').split('/')
+
+                # Must have at least owner/repo structure
+                if len(path_parts) < 2:
+                    return False
+
+                # Check that owner and repo names are not empty
+                owner, repo = path_parts[0], path_parts[1]
+                if not owner or not repo:
+                    return False
+
+                # Reject URLs with tree/branch paths (e.g., /tree/main, /blob/master)
+                # Check if any part contains branch/tree indicators
+                for part in path_parts:
+                    if part in ['tree', 'blob', 'commit', 'releases', 'tags']:
+                        return False
+
+                # Must have at least 2 parts and all parts must be non-empty
+                # Allow group/subgroup/repo structures for GitLab
+                if any(part == '' for part in path_parts):
+                    return False
+
+                return True
+            except Exception:
+                return False
+
+        # For SSH URLs, validate the structure
+        elif any(url.startswith(pattern) for pattern in ssh_patterns):
+            try:
+                # Extract the part after the colon
+                if ':' not in url:
+                    return False
+
+                _, path_part = url.split(':', 1)
+                path_parts = path_part.strip('/').split('/')
+
+                # Must have at least owner/repo structure
+                if len(path_parts) < 2:
+                    return False
+
+                # Check that owner and repo names are not empty
+                owner, repo = path_parts[0], path_parts[1]
+                if not owner or not repo:
+                    return False
+
+                return True
+            except Exception:
+                return False
+
+        return False
 
     def _parse_repository_info(self, url: str) -> Dict[str, str]:
         """
@@ -390,3 +451,62 @@ class GitService:
                 files.append(rel_path)
 
         return sorted(files)
+
+    def extract_repository_name(self, url: str) -> str:
+        """
+        Extract repository name from URL.
+
+        Args:
+            url: Repository URL
+
+        Returns:
+            str: Repository name or 'unknown' if extraction fails
+        """
+        try:
+            repo_info = self._parse_repository_info(url)
+            return repo_info['name']
+        except (GitOperationError, Exception):
+            return "unknown"
+
+    def analyze_repository_structure(self, repo_path: str) -> tuple:
+        """
+        Analyze repository structure and return file count and total size.
+
+        Args:
+            repo_path: Path to the repository
+
+        Returns:
+            Tuple of (file_count, total_size)
+        """
+        file_count = 0
+        total_size = 0
+
+        for root, dirs, files in os.walk(repo_path):
+            # Skip .git directory
+            if '.git' in dirs:
+                dirs.remove('.git')
+
+            for file in files:
+                file_path = os.path.join(root, file)
+                try:
+                    total_size += os.path.getsize(file_path)
+                    file_count += 1
+                except (OSError, IOError):
+                    # Skip files we can't access
+                    continue
+
+        return file_count, total_size
+
+    def cleanup_repository(self, repo_path: str) -> None:
+        """
+        Clean up repository directory.
+
+        Args:
+            repo_path: Path to the repository to clean up
+        """
+        try:
+            if os.path.exists(repo_path):
+                shutil.rmtree(repo_path, ignore_errors=True)
+                logger.info(f"Cleaned up repository at: {repo_path}")
+        except Exception as e:
+            logger.error(f"Failed to cleanup repository {repo_path}: {str(e)}")

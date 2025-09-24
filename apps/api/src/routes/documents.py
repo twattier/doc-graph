@@ -5,6 +5,7 @@ from typing import List
 
 from fastapi import APIRouter, status, HTTPException
 from fastapi.responses import JSONResponse
+from pydantic import Field
 
 from ..models.base import BaseSchema
 
@@ -26,7 +27,7 @@ class DocumentCreateSchema(BaseSchema):
     """
     Schema for creating new documents.
     """
-    title: str
+    title: str = Field(..., min_length=1, description="Document title cannot be empty")
     content: str
     file_type: str = "text"
 
