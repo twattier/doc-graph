@@ -4,6 +4,7 @@ API routes for repository management.
 
 import uuid
 import asyncio
+import logging
 from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request
@@ -26,6 +27,8 @@ from ..services.repository_service import RepositoryService
 from ..services.processing_service import RepositoryProcessor
 from .users import get_current_user
 from ..middleware.rate_limiting import apply_rate_limit
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/repositories", tags=["repositories"])
 

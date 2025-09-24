@@ -5,7 +5,7 @@ Git repository operations service for cloning and managing repositories.
 import os
 import shutil
 import asyncio
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Callable, List, Tuple
 from urllib.parse import urlparse
 import logging
 
@@ -179,7 +179,7 @@ class GitService:
         self,
         url: str,
         repository_id: str,
-        progress_callback: Optional[callable] = None
+        progress_callback: Optional[Callable] = None
     ) -> GitRepositoryInfo:
         """
         Clone a Git repository asynchronously.
@@ -321,7 +321,7 @@ class GitService:
     async def update_repository(
         self,
         repository_id: str,
-        progress_callback: Optional[callable] = None
+        progress_callback: Optional[Callable] = None
     ) -> GitRepositoryInfo:
         """
         Update an existing repository by pulling latest changes.
@@ -421,7 +421,7 @@ class GitService:
         storage_path = self.get_repository_storage_path(repository_id)
         return os.path.exists(storage_path)
 
-    def get_repository_files(self, repository_id: str, relative_path: str = "") -> list:
+    def get_repository_files(self, repository_id: str, relative_path: str = "") -> List[str]:
         """
         Get list of files in the repository.
 
@@ -468,7 +468,7 @@ class GitService:
         except (GitOperationError, Exception):
             return "unknown"
 
-    def analyze_repository_structure(self, repo_path: str) -> tuple:
+    def analyze_repository_structure(self, repo_path: str) -> Tuple[int, int]:
         """
         Analyze repository structure and return file count and total size.
 

@@ -4,7 +4,7 @@ Rate limiting middleware for API endpoints.
 
 import time
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 from fastapi import HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 import redis.asyncio as redis
@@ -26,10 +26,10 @@ class RateLimitExceeded(HTTPException):
 class RateLimiter:
     """Redis-based rate limiter with sliding window implementation."""
 
-    def __init__(self, redis_url: str = None):
+    def __init__(self, redis_url: Optional[str] = None):
         """Initialize rate limiter with Redis connection."""
         self.redis_url = redis_url or get_settings().redis_url
-        self._redis_pool = None
+        self._redis_pool: Optional[redis.Redis] = None
 
     async def get_redis_pool(self) -> redis.Redis:
         """Get or create Redis connection pool."""
@@ -103,7 +103,7 @@ class RateLimiter:
                 "retry_after": None
             }
 
-    async def close(self):
+    async def close(self) -> None:
         """Close Redis connection."""
         if self._redis_pool:
             await self._redis_pool.close()

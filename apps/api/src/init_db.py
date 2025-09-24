@@ -12,7 +12,7 @@ from .models.repository import Repository, RepositoryVersion, ImportJob
 from .config import get_settings
 
 
-async def create_tables():
+async def create_tables() -> None:
     """Create all database tables."""
     settings = get_settings()
 
@@ -38,7 +38,7 @@ async def create_tables():
         await engine.dispose()
 
 
-async def drop_tables():
+async def drop_tables() -> None:
     """Drop all database tables."""
     settings = get_settings()
 
@@ -64,7 +64,7 @@ async def drop_tables():
         await engine.dispose()
 
 
-async def init_test_db():
+async def init_test_db() -> None:
     """Initialize database for testing."""
     await drop_tables()
     await create_tables()
