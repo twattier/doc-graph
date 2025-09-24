@@ -52,8 +52,63 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="DocGraph API",
-        description="AI-powered document insight engine API",
+        description="""
+        ## DocGraph API - AI-Powered Document Insight Engine
+
+        The DocGraph API provides comprehensive Git repository import and analysis capabilities,
+        enabling users to import public repositories, analyze their structure, and extract
+        meaningful insights from project documentation.
+
+        ### Features
+
+        - **Git Repository Import**: Import public repositories from GitHub, GitLab, and other Git services
+        - **Repository Management**: Full CRUD operations for managing imported repositories
+        - **Document Analysis**: AI-powered analysis of project documentation and code structure
+        - **User Management**: Email-based authentication and user session management
+        - **Health Monitoring**: Real-time health checks for all system components
+
+        ### Authentication
+
+        Most endpoints require authentication via JWT tokens. Include the token in the
+        `Authorization` header as: `Bearer <token>`
+
+        ### Rate Limiting
+
+        Repository import endpoints are rate limited to 10 imports per minute per user
+        to ensure system stability.
+
+        ### API Status
+
+        - **Environment**: {environment}
+        - **Version**: 0.1.0
+        - **Health Check**: GET /health
+        """.format(environment=settings.environment.title()),
         version="0.1.0",
+        contact={
+            "name": "DocGraph Development Team",
+            "url": "https://github.com/your-org/doc-graph",
+        },
+        license_info={
+            "name": "MIT",
+        },
+        tags_metadata=[
+            {
+                "name": "health",
+                "description": "System health and monitoring endpoints",
+            },
+            {
+                "name": "repositories",
+                "description": "Git repository import, management, and analysis operations",
+            },
+            {
+                "name": "users",
+                "description": "User authentication, registration, and session management",
+            },
+            {
+                "name": "documents",
+                "description": "Document management and analysis operations",
+            },
+        ],
         docs_url="/docs" if settings.environment != "production" else None,
         redoc_url="/redoc" if settings.environment != "production" else None,
         lifespan=lifespan,
@@ -73,6 +128,35 @@ def create_app() -> FastAPI:
     app.include_router(documents.router, prefix="/api/documents", tags=["documents"])
     app.include_router(repositories.router, tags=["repositories"])
     app.include_router(users.router, tags=["users"])
+
+    # Root endpoint
+    @app.get("/", tags=["root"], summary="API Root", description="Get API information and available endpoints")
+    async def root():
+        """
+        API root endpoint providing basic information and navigation links.
+        """
+        return {
+            "message": "Welcome to DocGraph API",
+            "version": "0.1.0",
+            "documentation": {
+                "swagger_ui": "/docs",
+                "redoc": "/redoc",
+                "openapi_spec": "/openapi.json"
+            },
+            "health_check": "/health",
+            "endpoints": {
+                "repositories": "/api/repositories",
+                "documents": "/api/documents",
+                "users": "/api/users"
+            },
+            "features": [
+                "Git repository import and management",
+                "Document analysis and processing",
+                "User authentication and sessions",
+                "Rate limiting and security",
+                "Real-time health monitoring"
+            ]
+        }
 
     # Global exception handler
     @app.exception_handler(Exception)
