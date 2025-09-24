@@ -126,8 +126,8 @@ def create_app() -> FastAPI:
     # Include routers
     app.include_router(health.router, prefix="/health", tags=["health"])
     app.include_router(documents.router, prefix="/api/documents", tags=["documents"])
-    app.include_router(repositories.router, tags=["repositories"])
-    app.include_router(users.router, tags=["users"])
+    app.include_router(repositories.router)  # Already has prefix and tags
+    app.include_router(users.router)  # Already has prefix and tags
 
     # Root endpoint
     @app.get("/", tags=["root"], summary="API Root", description="Get API information and available endpoints")
