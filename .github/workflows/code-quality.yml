@@ -1,0 +1,122 @@
+name: Code Quality
+
+on:
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Shallow clones should be disabled for better analysis
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd apps/api && pip install -r requirements.txt
+
+      - name: Run ESLint with annotations
+        run: |
+          npm run lint -- --format @microsoft/eslint-formatter-sarif --output-file eslint-results.sarif
+        continue-on-error: true
+
+      - name: Upload ESLint results to GitHub
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: eslint-results.sarif
+          wait-for-processing: true
+
+      - name: Run Python code quality checks
+        run: |
+          cd apps/api
+          # Type checking
+          mypy src/ --output-format=github
+
+          # Code style
+          flake8 src/ --format='::error file=%(path)s,line=%(row)d,col=%(col)d::%(code)s: %(text)s'
+
+          # Security checks
+          bandit -r src/ -f json -o bandit-report.json || true
+        continue-on-error: true
+
+      - name: Comment PR with quality metrics
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+
+            let comment = '## Code Quality Report\n\n';
+
+            // Add ESLint results if available
+            if (fs.existsSync('eslint-results.sarif')) {
+              const eslintResults = JSON.parse(fs.readFileSync('eslint-results.sarif', 'utf8'));
+              const issues = eslintResults.runs[0].results.reduce((sum, result) => sum + result.ruleViolations?.length || 0, 0);
+              comment += `### Frontend (ESLint)\n- Issues found: ${issues}\n\n`;
+            }
+
+            // Add Python results if available
+            if (fs.existsSync('apps/api/bandit-report.json')) {
+              const banditResults = JSON.parse(fs.readFileSync('apps/api/bandit-report.json', 'utf8'));
+              comment += `### Backend (Bandit Security)\n- Issues found: ${banditResults.results?.length || 0}\n\n`;
+            }
+
+            comment += '✅ Automated code quality checks completed. Please review any issues found above.\n\n';
+            comment += '*This report was generated automatically.*';
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  type-coverage:
+    name: TypeScript Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check TypeScript coverage
+        run: |
+          # Install type-coverage
+          npm install -g type-coverage
+
+          # Check frontend type coverage
+          cd apps/web && type-coverage --at-least 95 --detail
+
+          # Check shared package type coverage
+          cd ../../packages/shared && type-coverage --at-least 95 --detail
+
+          # Check UI package type coverage
+          cd ../ui && type-coverage --at-least 95 --detail
+
+        continue-on-error: true

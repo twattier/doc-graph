@@ -1,0 +1,66 @@
+services:
+  # PostgreSQL with pgvector extension
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: docgraph-postgres-dev
+    environment:
+      POSTGRES_DB: docgraph_dev
+      POSTGRES_USER: docgraph_user
+      POSTGRES_PASSWORD: secure_dev_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docgraph_user -d docgraph_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - docgraph-network
+
+  # Neo4j graph database
+  neo4j:
+    image: neo4j:5.15
+    container_name: docgraph-neo4j-dev
+    environment:
+      NEO4J_AUTH: neo4j/secure_dev_neo4j_password
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+      NEO4J_dbms_security_procedures_allowlist: apoc.*
+    ports:
+      - "7475:7474"  # HTTP
+      - "7688:7687"  # Bolt
+    volumes:
+      - ./data/neo4j/data:/data
+      - ./data/neo4j/logs:/logs
+      - ./data/neo4j/import:/var/lib/neo4j/import
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "secure_dev_neo4j_password", "RETURN 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - docgraph-network
+
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    container_name: docgraph-redis-dev
+    command: redis-server --requirepass secure_dev_redis_password
+    ports:
+      - "6380:6379"
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "secure_dev_redis_password", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - docgraph-network
+
+networks:
+  docgraph-network:
+    driver: bridge
