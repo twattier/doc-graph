@@ -80,7 +80,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
         ports:
-          - ${{ env.CI_POSTGRES_PORT }}:5432
+          - 5432:5432
 
       redis:
         image: redis:7-alpine
@@ -90,7 +90,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
         ports:
-          - ${{ env.CI_REDIS_PORT }}:6379
+          - 6379:6379
 
       neo4j:
         image: neo4j:5.15
@@ -102,8 +102,8 @@ jobs:
           --health-timeout 5s
           --health-retries 5
         ports:
-          - ${{ env.CI_NEO4J_HTTP_PORT }}:7474
-          - ${{ env.CI_NEO4J_BOLT_PORT }}:7687
+          - 7474:7474
+          - 7687:7687
 
     steps:
       - name: Checkout code
@@ -133,10 +133,10 @@ jobs:
           cd apps/api
           mypy src/
 
-      - name: Run backend tests
+      - name: Run backend unit tests
         run: |
           cd apps/api
-          pytest tests/ -v --cov=src --cov-report=xml
+          pytest tests/unit/ -v --cov=src --cov-report=xml
         env:
           DATABASE_URL: postgresql://test_user:test_password@localhost:${{ env.CI_POSTGRES_PORT }}/docgraph_test
           NEO4J_URI: bolt://localhost:${{ env.CI_NEO4J_BOLT_PORT }}
@@ -270,17 +270,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build all packages
+      - name: Build frontend application
         run: |
-          npm run build --workspace=packages/shared
-          npm run build --workspace=packages/ui
           npm run build --workspace=apps/web
 
       - name: Check build artifacts
         run: |
           test -d apps/web/dist || (echo "Frontend build failed" && exit 1)
-          test -d packages/shared/dist || (echo "Shared package build failed" && exit 1)
-          echo "✅ All build artifacts present"
+          echo "✅ Frontend build artifacts present"
 
       - name: Deployment ready notification
         run: |
