@@ -65,7 +65,10 @@ run_tests() {
 # Docker configuration
 DOCKER_COMPOSE_FILE="docker-compose.yml"
 API_SERVICE_NAME="api"
-PROJECT_ROOT="$(dirname "$0")/../../../"
+
+# Get the actual script directory and calculate project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../" && pwd)"
 
 # Default test suite selection
 SUITE="all"
