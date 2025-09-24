@@ -2,16 +2,19 @@
 
 ## Deployment Strategy
 
-**Frontend Deployment:**
-- **Platform:** Vercel with Next.js deployment optimization
-- **Build Command:** `nx build web`
-- **Output Directory:** `apps/web/.next`
-- **CDN/Edge:** Vercel Edge Network with global caching
+**Local Docker Deployment:**
+- **Platform:** Docker containers with docker-compose orchestration
+- **Build Command:** `docker-compose build`
+- **Deployment Method:** Local development environment with mapped volumes
+- **Storage:** Docker volumes mapped to project directory structure for persistence
 
-**Backend Deployment:**
-- **Platform:** AWS Lambda with Serverless Framework
-- **Build Command:** `nx build api && serverless package`
-- **Deployment Method:** Infrastructure as Code with AWS CDK
+**Application Architecture:**
+- **Frontend Container:** React application served via nginx
+- **Backend Container:** FastAPI application
+- **PostgreSQL Container:** PostgreSQL with pgvector extension for documents and embeddings
+- **Neo4j Container:** Neo4j graph database for relationships and connections
+- **Redis Container:** Redis for caching and session storage
+- **Volume Mapping:** `/app/data` -> `./data` for persistent storage and repository files
 
 ## CI/CD Pipeline
 ```yaml
@@ -47,6 +50,14 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v3
 
@@ -75,64 +86,31 @@ jobs:
           pip install -r requirements.txt
           pytest --cov=src tests/
 
-      - name: Build applications
-        run: nx run-many --target=build --all
+      - name: Build Docker images
+        run: docker-compose build
 
-  deploy-staging:
-    if: github.ref == 'refs/heads/develop'
+      - name: Test Docker deployment
+        run: |
+          docker-compose up -d
+          sleep 30
+          docker-compose exec web curl http://localhost:3000/health
+          docker-compose down
+
+  integration-test:
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
     needs: test
     runs-on: ubuntu-latest
-    environment: staging
 
     steps:
       - uses: actions/checkout@v3
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-
-      - name: Deploy infrastructure
+      - name: Run integration tests
         run: |
-          cd infrastructure
-          npm install
-          npx cdk deploy --all --require-approval never
-
-      - name: Deploy backend
-        run: |
-          cd apps/api
-          npm install -g serverless
-          serverless deploy --stage staging
-
-      - name: Deploy frontend
-        uses: amondnet/vercel-action@v25
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          vercel-args: '--env NODE_ENV=staging'
-
-  deploy-production:
-    if: github.ref == 'refs/heads/main'
-    needs: test
-    runs-on: ubuntu-latest
-    environment: production
-
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Deploy to production
-        run: |
-          # Production deployment steps
-          echo "Deploying to production..."
-          # Add production deployment logic
+          docker-compose -f docker-compose.test.yml up --build --exit-code-from test
 ```
 
 ## Environments
 | Environment | Frontend URL | Backend URL | Purpose |
 |-------------|-------------|-------------|---------|
-| Development | http://localhost:3000 | http://localhost:3001 | Local development and testing |
-| Staging | https://staging.docgraph.dev | https://api-staging.docgraph.dev | Pre-production testing and demos |
-| Production | https://app.docgraph.dev | https://api.docgraph.dev | Live production environment |
+| Development | http://localhost:3000 | http://localhost:8000 | Local Docker development |
+| Test | http://localhost:3001 | http://localhost:8001 | Local Docker testing |

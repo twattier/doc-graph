@@ -7,38 +7,64 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Users table (managed by Cognito, referenced only)
+-- Access Control Model:
+-- Projects can be shared among multiple users with different roles:
+-- - owner: Full control, can delete project, manage users
+-- - editor: Can modify project content, view all data
+-- - viewer: Read-only access to project and visualizations
+-- Future enhancement: Granular permissions in the permissions JSONB field
+
+-- Users table (basic email-based authentication)
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    cognito_sub VARCHAR(255) UNIQUE NOT NULL,
-    email VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Projects table
+-- Projects table (removed user_id as projects can have multiple users)
 CREATE TABLE projects (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     github_url TEXT NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'importing',
     metadata JSONB NOT NULL DEFAULT '{}',
+    created_by UUID NOT NULL REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 
     CONSTRAINT projects_status_check CHECK (status IN ('importing', 'processing', 'ready', 'error'))
 );
 
-CREATE INDEX projects_user_id_idx ON projects(user_id);
 CREATE INDEX projects_status_idx ON projects(status);
 CREATE INDEX projects_github_url_idx ON projects USING HASH(github_url);
+CREATE INDEX projects_created_by_idx ON projects(created_by);
 
--- Template zones table
-CREATE TABLE template_zones (
+-- Project users association table (many-to-many relationship)
+CREATE TABLE project_users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    template_type VARCHAR(50) NOT NULL,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role VARCHAR(50) NOT NULL DEFAULT 'viewer',
+    permissions JSONB NOT NULL DEFAULT '{"read": true, "write": false, "admin": false}',
+    added_by UUID REFERENCES users(id),
+    added_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    CONSTRAINT project_users_unique UNIQUE(project_id, user_id),
+    CONSTRAINT project_users_role_check CHECK (role IN ('owner', 'editor', 'viewer'))
+);
+
+CREATE INDEX project_users_project_id_idx ON project_users(project_id);
+CREATE INDEX project_users_user_id_idx ON project_users(user_id);
+CREATE INDEX project_users_role_idx ON project_users(role);
+
+-- Project documentation types table
+CREATE TABLE project_docs_type (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    doc_type VARCHAR(50) NOT NULL,
     root_path TEXT NOT NULL,
     visualization_config JSONB NOT NULL DEFAULT '{}',
     completeness_score DECIMAL(3,2) DEFAULT 0.0,
@@ -46,21 +72,21 @@ CREATE TABLE template_zones (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 
-    CONSTRAINT template_zones_type_check CHECK (template_type IN ('bmad-method', 'claude-code', 'generic')),
-    CONSTRAINT template_zones_completeness_check CHECK (completeness_score >= 0.0 AND completeness_score <= 1.0)
+    CONSTRAINT project_docs_type_check CHECK (doc_type IN ('bmad-method', 'claude-code', 'generic')),
+    CONSTRAINT project_docs_completeness_check CHECK (completeness_score >= 0.0 AND completeness_score <= 1.0)
 );
 
-CREATE INDEX template_zones_project_id_idx ON template_zones(project_id);
-CREATE INDEX template_zones_type_idx ON template_zones(template_type);
+CREATE INDEX project_docs_type_project_id_idx ON project_docs_type(project_id);
+CREATE INDEX project_docs_type_doc_type_idx ON project_docs_type(doc_type);
 
 -- Documents table with pgvector embeddings
 CREATE TABLE documents (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    template_zone_id UUID REFERENCES template_zones(id) ON DELETE SET NULL,
+    project_docs_type_id UUID REFERENCES project_docs_type(id) ON DELETE SET NULL,
     file_path TEXT NOT NULL,
     content TEXT NOT NULL,
-    template_type VARCHAR(50) NOT NULL,
+    doc_type VARCHAR(50) NOT NULL,
     extracted_metadata JSONB NOT NULL DEFAULT '{}',
     embedding_vector vector(768), -- OpenAI ada-002 embedding size
     processing_status VARCHAR(50) NOT NULL DEFAULT 'pending',
@@ -68,14 +94,14 @@ CREATE TABLE documents (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 
-    CONSTRAINT documents_template_type_check CHECK (template_type IN ('bmad-method', 'claude-code', 'generic')),
+    CONSTRAINT documents_doc_type_check CHECK (doc_type IN ('bmad-method', 'claude-code', 'generic')),
     CONSTRAINT documents_status_check CHECK (processing_status IN ('pending', 'processed', 'failed')),
     CONSTRAINT documents_confidence_check CHECK (detection_confidence >= 0.0 AND detection_confidence <= 1.0),
     CONSTRAINT documents_project_path_unique UNIQUE (project_id, file_path)
 );
 
 CREATE INDEX documents_project_id_idx ON documents(project_id);
-CREATE INDEX documents_template_type_idx ON documents(template_type);
+CREATE INDEX documents_doc_type_idx ON documents(doc_type);
 CREATE INDEX documents_processing_status_idx ON documents(processing_status);
 CREATE INDEX documents_embedding_vector_idx ON documents USING ivfflat (embedding_vector vector_cosine_ops) WITH (lists = 100);
 
@@ -83,7 +109,7 @@ CREATE INDEX documents_embedding_vector_idx ON documents USING ivfflat (embeddin
 CREATE TABLE visualizations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    template_zone_id UUID REFERENCES template_zones(id) ON DELETE SET NULL,
+    project_docs_type_id UUID REFERENCES project_docs_type(id) ON DELETE SET NULL,
     visualization_type VARCHAR(50) NOT NULL,
     mermaid_code TEXT NOT NULL,
     generation_metadata JSONB NOT NULL DEFAULT '{}',
@@ -100,21 +126,21 @@ CREATE INDEX visualizations_project_id_idx ON visualizations(project_id);
 CREATE INDEX visualizations_expires_at_idx ON visualizations(expires_at);
 CREATE INDEX visualizations_cache_status_idx ON visualizations(cache_status);
 
--- Template mappings table for project-specific overrides
-CREATE TABLE template_mappings (
+-- Documentation type mappings table for project-specific overrides
+CREATE TABLE doc_type_mappings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     path_pattern TEXT NOT NULL,
-    template_type VARCHAR(50) NOT NULL,
+    doc_type VARCHAR(50) NOT NULL,
     confidence DECIMAL(3,2) NOT NULL DEFAULT 1.0,
     is_override BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 
-    CONSTRAINT template_mappings_type_check CHECK (template_type IN ('bmad-method', 'claude-code', 'generic')),
-    CONSTRAINT template_mappings_confidence_check CHECK (confidence >= 0.0 AND confidence <= 1.0)
+    CONSTRAINT doc_type_mappings_check CHECK (doc_type IN ('bmad-method', 'claude-code', 'generic')),
+    CONSTRAINT doc_type_mappings_confidence_check CHECK (confidence >= 0.0 AND confidence <= 1.0)
 );
 
-CREATE INDEX template_mappings_project_id_idx ON template_mappings(project_id);
+CREATE INDEX doc_type_mappings_project_id_idx ON doc_type_mappings(project_id);
 
 -- Update triggers for updated_at fields
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -126,7 +152,7 @@ END;
 $$ language 'plpgsql';
 
 CREATE TRIGGER update_projects_updated_at BEFORE UPDATE ON projects FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_template_zones_updated_at BEFORE UPDATE ON template_zones FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_project_docs_type_updated_at BEFORE UPDATE ON project_docs_type FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_documents_updated_at BEFORE UPDATE ON documents FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_visualizations_updated_at BEFORE UPDATE ON visualizations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 ```
@@ -137,11 +163,11 @@ CREATE TRIGGER update_visualizations_updated_at BEFORE UPDATE ON visualizations 
 // Create constraints for performance and data integrity
 CREATE CONSTRAINT project_id IF NOT EXISTS FOR (p:Project) REQUIRE p.id IS UNIQUE;
 CREATE CONSTRAINT document_id IF NOT EXISTS FOR (d:Document) REQUIRE d.id IS UNIQUE;
-CREATE CONSTRAINT template_zone_id IF NOT EXISTS FOR (tz:TemplateZone) REQUIRE tz.id IS UNIQUE;
+CREATE CONSTRAINT project_docs_type_id IF NOT EXISTS FOR (pdt:ProjectDocsType) REQUIRE pdt.id IS UNIQUE;
 
 // Create indexes for common queries
 CREATE INDEX project_github_url IF NOT EXISTS FOR (p:Project) ON (p.github_url);
-CREATE INDEX document_template_type IF NOT EXISTS FOR (d:Document) ON (d.template_type);
+CREATE INDEX document_doc_type IF NOT EXISTS FOR (d:Document) ON (d.doc_type);
 CREATE INDEX document_file_path IF NOT EXISTS FOR (d:Document) ON (d.file_path);
 
 // Node creation patterns for projects
@@ -152,26 +178,26 @@ MERGE (p:Project {
     created_at: datetime()
 });
 
-// Template zone nodes with hierarchy
+// Project documentation type nodes with hierarchy
 MERGE (p:Project {id: $project_id})
-MERGE (tz:TemplateZone {
-    id: $zone_id,
+MERGE (pdt:ProjectDocsType {
+    id: $docs_type_id,
     project_id: $project_id,
-    template_type: $template_type,
+    doc_type: $doc_type,
     root_path: $root_path
 })
-MERGE (p)-[:CONTAINS_ZONE]->(tz);
+MERGE (p)-[:CONTAINS_DOCS_TYPE]->(pdt);
 
-// Document nodes with template classification
-MERGE (tz:TemplateZone {id: $zone_id})
+// Document nodes with documentation type classification
+MERGE (pdt:ProjectDocsType {id: $docs_type_id})
 MERGE (d:Document {
     id: $document_id,
     project_id: $project_id,
     file_path: $file_path,
-    template_type: $template_type,
+    doc_type: $doc_type,
     detection_confidence: $confidence
 })
-MERGE (tz)-[:CONTAINS_DOCUMENT]->(d);
+MERGE (pdt)-[:CONTAINS_DOCUMENT]->(d);
 
 // Cross-template relationship patterns
 MATCH (source:Document {id: $source_id})

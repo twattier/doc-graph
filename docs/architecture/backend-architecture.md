@@ -2,23 +2,27 @@
 
 ## Service Architecture
 
-### Function Organization (Serverless)
+### API Organization (FastAPI Docker)
 ```
 src/
-├── handlers/              # Lambda function handlers
-│   ├── projects/          # Project management handlers
-│   │   ├── import.ts      # POST /projects
-│   │   ├── list.ts        # GET /projects
-│   │   └── detail.ts      # GET /projects/{id}
-│   ├── templates/         # Template detection handlers
-│   │   ├── detect.ts      # POST /template-detection/analyze
-│   │   └── mappings.ts    # PUT /template-detection/mappings
-│   ├── visualizations/    # Visualization generation handlers
-│   │   ├── generate.ts    # POST /visualizations/generate
-│   │   └── export.ts      # GET /visualizations/{id}/export
-│   └── search/            # Search and relationship handlers
-│       ├── search.ts      # GET /projects/{id}/search
-│       └── relationships.ts # POST /relationships/detect
+├── routes/                # API route handlers
+│   ├── projects/          # Project management routes
+│   │   ├── import.py      # POST /projects
+│   │   ├── list.py        # GET /projects
+│   │   └── detail.py      # GET /projects/{id}
+│   ├── templates/         # Template detection routes
+│   │   ├── detect.py      # POST /template-detection/analyze
+│   │   └── mappings.py    # PUT /template-detection/mappings
+│   ├── visualizations/    # Visualization generation routes
+│   │   ├── generate.py    # POST /visualizations/generate
+│   │   └── export.py      # GET /visualizations/{id}/export
+│   ├── search/            # Search and relationship routes
+│   │   ├── search.py      # GET /projects/{id}/search
+│   │   └── relationships.py # POST /relationships/detect
+│   └── auth/              # Authentication routes
+│       ├── register.py    # POST /auth/register
+│       ├── login.py       # POST /auth/login
+│       └── logout.py      # POST /auth/logout
 ├── services/              # Business logic services
 │   ├── ProjectService.ts  # Project management logic
 │   ├── TemplateService.ts # Template detection and classification
@@ -175,36 +179,34 @@ export class ProjectRepository {
 sequenceDiagram
     participant U as User
     participant W as Web App
-    participant C as AWS Cognito
-    participant G as GitHub
-    participant A as API Gateway
-    participant L as Lambda Functions
+    participant A as Auth Service
+    participant B as Backend API
+    participant R as Redis Session Store
 
-    U->>W: Login request
-    W->>C: Initiate GitHub OAuth
-    C->>G: Redirect to GitHub OAuth
-    G-->>C: Authorization code
-    C-->>W: JWT tokens (access + refresh)
-    W->>W: Store tokens securely
+    U->>W: Login request (email/password)
+    W->>A: POST /auth/login
+    A->>A: Validate credentials (bcrypt)
+    A->>R: Store session token
+    A-->>W: JWT token + refresh token
+    W->>W: Store tokens securely (localStorage)
 
-    Note over U,L: Authenticated API Request Flow
+    Note over U,B: Authenticated API Request Flow
 
     U->>W: Make API request
-    W->>A: Request with Authorization header
-    A->>C: Validate JWT token
-    C-->>A: Token validation result
-    A->>L: Forward request with user context
-    L->>L: Process business logic
-    L-->>A: Response
-    A-->>W: API response
+    W->>B: Request with Authorization header
+    B->>B: Validate JWT token locally
+    B->>R: Check session validity
+    R-->>B: Session status
+    B->>B: Process business logic
+    B-->>W: API response
     W-->>U: Updated UI
 ```
 
 ### Middleware/Guards
 ```typescript
-import { APIGatewayProxyEvent } from 'aws-lambda';
+import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import jwksClient from 'jwks-rsa';
+import { Redis } from 'ioredis';
 
 interface AuthContext {
   userId: string;
@@ -213,37 +215,46 @@ interface AuthContext {
 }
 
 export class AuthMiddleware {
-  private jwksClient: jwksClient.JwksClient;
+  private redisClient: Redis;
+  private jwtSecret: string;
 
   constructor() {
-    this.jwksClient = jwksClient({
-      jwksUri: `https://cognito-idp.${process.env.AWS_REGION}.amazonaws.com/${process.env.COGNITO_USER_POOL_ID}/.well-known/jwks.json`,
-      cache: true,
-      cacheMaxAge: 86400000, // 24 hours
+    this.redisClient = new Redis({
+      host: process.env.REDIS_HOST || 'redis',
+      port: parseInt(process.env.REDIS_PORT || '6379'),
     });
+    this.jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
   }
 
-  async validateToken(event: APIGatewayProxyEvent): Promise<AuthContext> {
-    const token = this.extractToken(event);
+  async validateToken(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const token = this.extractToken(req);
     if (!token) {
-      throw new Error('No authorization token provided');
+      return res.status(401).json({ error: 'No authorization token provided' });
     }
 
     try {
-      const decodedToken = await this.verifyJWT(token);
+      const decoded = jwt.verify(token, this.jwtSecret) as any;
 
-      return {
-        userId: decodedToken.sub,
-        email: decodedToken.email,
-        permissions: decodedToken['custom:permissions'] || [],
+      // Check if session exists in Redis
+      const sessionExists = await this.redisClient.exists(`session:${decoded.sessionId}`);
+      if (!sessionExists) {
+        return res.status(401).json({ error: 'Session expired' });
+      }
+
+      req.user = {
+        userId: decoded.userId,
+        email: decoded.email,
+        permissions: decoded.permissions || [],
       };
+
+      next();
     } catch (error) {
-      throw new Error('Invalid or expired token');
+      return res.status(401).json({ error: 'Invalid or expired token' });
     }
   }
 
-  private extractToken(event: APIGatewayProxyEvent): string | null {
-    const authHeader = event.headers?.Authorization || event.headers?.authorization;
+  private extractToken(req: Request): string | null {
+    const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return null;
     }

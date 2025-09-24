@@ -27,15 +27,31 @@ interface Project {
     primaryBranch: string;
     detectionConfidence: number;
   };
+  createdBy: string; // User ID who created the project
   createdAt: Date;
   updatedAt: Date;
+}
+
+interface ProjectUser {
+  id: string;
+  projectId: string;
+  userId: string;
+  role: 'owner' | 'editor' | 'viewer';
+  permissions: {
+    read: boolean;
+    write: boolean;
+    admin: boolean;
+  };
+  addedBy?: string;
+  addedAt: Date;
 }
 ```
 
 ### Relationships
 - Has many Documents
-- Has many TemplateZones
-- Belongs to User
+- Has many ProjectDocsType
+- Has many Users (through ProjectUser)
+- Created by one User (createdBy)
 
 ## Document
 **Purpose:** Individual file within a project with template classification and extracted metadata
@@ -45,8 +61,8 @@ interface Project {
 - projectId: string - Parent project reference
 - filePath: string - Relative path within repository
 - content: string - Document content
-- templateType: TemplateType - Detected template classification
-- extractedMetadata: DocumentMetadata - Template-specific metadata
+- docType: DocType - Detected documentation type classification
+- extractedMetadata: DocumentMetadata - Documentation type-specific metadata
 - embeddingVector: number[] - pgvector embedding for similarity search
 - processingStatus: ProcessingStatus - Current processing state
 
@@ -55,9 +71,10 @@ interface Project {
 interface Document {
   id: string;
   projectId: string;
+  projectDocsTypeId?: string;
   filePath: string;
   content: string;
-  templateType: 'bmad-method' | 'claude-code' | 'generic';
+  docType: 'bmad-method' | 'claude-code' | 'generic';
   extractedMetadata: Record<string, any>;
   embeddingVector?: number[];
   processingStatus: 'pending' | 'processed' | 'failed';
@@ -69,26 +86,26 @@ interface Document {
 
 ### Relationships
 - Belongs to Project
-- Has many CrossTemplateRelationships (source and target)
-- Part of TemplateZone
+- Has many CrossDocTypeRelationships (source and target)
+- Part of ProjectDocsType
 
-## TemplateZone
-**Purpose:** Logical grouping of documents within a project that share the same template type
+## ProjectDocsType
+**Purpose:** Logical grouping of documents within a project that share the same documentation type
 
 **Key Attributes:**
-- id: string (UUID) - Unique zone identifier
+- id: string (UUID) - Unique identifier
 - projectId: string - Parent project reference
-- templateType: TemplateType - Template classification for this zone
-- rootPath: string - Base directory path for this template zone
-- visualizationConfig: VisualizationConfig - Zone-specific visualization settings
-- completenessScore: number - Assessment of template completeness
+- docType: DocType - Documentation type classification
+- rootPath: string - Base directory path for this documentation type
+- visualizationConfig: VisualizationConfig - Type-specific visualization settings
+- completenessScore: number - Assessment of documentation completeness
 
 ### TypeScript Interface
 ```typescript
-interface TemplateZone {
+interface ProjectDocsType {
   id: string;
   projectId: string;
-  templateType: 'bmad-method' | 'claude-code' | 'generic';
+  docType: 'bmad-method' | 'claude-code' | 'generic';
   rootPath: string;
   visualizationConfig: {
     preferredLayout: 'tree' | 'pipeline' | 'graph';
@@ -107,8 +124,8 @@ interface TemplateZone {
 - Contains many Documents
 - Has many Visualizations
 
-## CrossTemplateRelationship
-**Purpose:** Represents connections and dependencies between documents from different template zones
+## CrossDocTypeRelationship
+**Purpose:** Represents connections and dependencies between documents from different documentation types
 
 **Key Attributes:**
 - id: string (UUID) - Unique relationship identifier
@@ -121,7 +138,7 @@ interface TemplateZone {
 
 ### TypeScript Interface
 ```typescript
-interface CrossTemplateRelationship {
+interface CrossDocTypeRelationship {
   id: string;
   sourceDocumentId: string;
   targetDocumentId: string;
@@ -143,12 +160,12 @@ interface CrossTemplateRelationship {
 - Part of relationship analysis for Visualizations
 
 ## Visualization
-**Purpose:** Generated Mermaid diagram representing template-specific or cross-template relationships
+**Purpose:** Generated Mermaid diagram representing documentation type-specific or cross-type relationships
 
 **Key Attributes:**
 - id: string (UUID) - Unique visualization identifier
 - projectId: string - Parent project reference
-- templateZoneId: string - Associated template zone (if applicable)
+- projectDocsTypeId: string - Associated documentation type (if applicable)
 - visualizationType: VisualizationType - Type of diagram generated
 - mermaidCode: string - Generated Mermaid diagram syntax
 - generationMetadata: GenerationMetadata - Creation details and performance metrics
@@ -159,7 +176,7 @@ interface CrossTemplateRelationship {
 interface Visualization {
   id: string;
   projectId: string;
-  templateZoneId?: string;
+  projectDocsTypeId?: string;
   visualizationType: 'tree' | 'pipeline' | 'graph' | 'cross-template';
   mermaidCode: string;
   generationMetadata: {
@@ -178,5 +195,5 @@ interface Visualization {
 
 ### Relationships
 - Belongs to Project
-- May belong to TemplateZone
-- Generated from Documents and CrossTemplateRelationships
+- May belong to ProjectDocsType
+- Generated from Documents and CrossDocTypeRelationships

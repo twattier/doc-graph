@@ -9,26 +9,28 @@ so that **I can begin building DocGraph features with proper tooling, testing, a
 
 ### Acceptance Criteria
 1. Monorepo structure established with frontend (React + shadcn/ui) and backend (Python FastAPI) separation
-2. Docker containerization configured for both development and production environments
-3. CI/CD pipeline configured with automated testing and deployment workflows
-4. Database services (pgvector + Neo4j) containerized and integrated
-5. Basic health check endpoints operational with monitoring capabilities
+2. Docker containerization configured for local development environment with docker-compose
+3. CI/CD pipeline configured with automated testing workflows (no AWS deployment)
+4. Database services (PostgreSQL with pgvector, Neo4j, Redis) containerized and integrated
+5. Basic health check endpoints operational with local monitoring capabilities
 6. TypeScript and Python type checking integrated into development workflow
 7. Testing frameworks configured (Jest/Vitest for frontend, pytest for backend)
+8. Docker volume mapping configured for persistent data storage within project structure
 
-## Story 1.2: GitHub Repository Import System
+## Story 1.2: Git Repository Import System
 As a **project decision maker**,
-I want **to import the Magnet project repository through a simple URL input**,
+I want **to import public Git repositories through a simple URL input**,
 so that **I can access all project documentation for template-aware analysis**.
 
 ### Acceptance Criteria
-1. Web interface accepts GitHub repository URLs with validation
-2. OAuth authentication system integrated for GitHub API access
-3. Repository content downloaded and stored locally with proper error handling
+1. Web interface accepts public Git repository URLs with validation (GitHub, GitLab, etc.)
+2. Git clone operations implemented for repository access without authentication
+3. Repository content cloned and stored locally with proper error handling
 4. File structure preserved maintaining original directory relationships
 5. Import progress indicators show real-time status to users
 6. Successful import of `./projects/magnet` repository structure verified
-7. Rate limiting and caching implemented for GitHub API interactions
+7. Local caching and update mechanisms implemented for repository synchronization
+8. Basic email-based user management integrated for project ownership
 
 ## Story 1.3: BMAD-METHOD Template Detection
 As a **system**,

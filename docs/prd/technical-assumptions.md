@@ -20,11 +20,12 @@ DocGraph will use a monorepo structure with clear frontend/backend separation, s
 - **Template Validation Testing**: Accuracy testing across various BMAD-METHOD and Claude Code project structures
 
 ## Additional Technical Assumptions and Requests
-- **GitHub API Rate Limiting**: Implementation of intelligent caching and request optimization to stay within API limits
+- **Local Docker Deployment**: Docker-based MVP application running locally with mapped volumes for persistence
+- **Basic User Management**: Simple email-based registration and login system without external OAuth
+- **Public Repository Access**: Direct git clone access to public repositories without GitHub authentication
 - **Mermaid.js Integration**: Native integration for client-side diagram rendering with server-side generation capabilities
 - **Template Rule Engine**: Configurable system for pattern matching and classification without requiring code changes
-- **pgvector + Neo4j Hybrid**: Document embeddings in pgvector for search, graph relationships in Neo4j for visualization
-- **OAuth Security**: GitHub authentication with minimal scope requirements (public repository read access only)
+- **PostgreSQL + pgvector + Neo4j + Redis**: PostgreSQL with pgvector for documents and embeddings, Neo4j for graph relationships, Redis for caching and sessions
 - **FastAPI Backend**: Python-based API with pydantic validation and agentic framework compatibility
 - **React + shadcn/ui Frontend**: Modern component library with TypeScript for type safety
-- **Container Orchestration**: Docker-based deployment with Kubernetes readiness for scaling
+- **Local Volume Storage**: Persistent storage using Docker mapped volumes within project structure

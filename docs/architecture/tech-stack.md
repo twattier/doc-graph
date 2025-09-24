@@ -14,16 +14,16 @@
 | Database | PostgreSQL + pgvector | 15+ | Document storage with vector search | Combines relational data integrity with AI-powered document similarity |
 | Graph Database | Neo4j | 5.15+ | Relationship and graph data | Specialized for complex cross-template relationship queries |
 | Cache | Redis | 7.2+ | Performance caching and sessions | Essential for template detection caching and real-time features |
-| File Storage | AWS S3 | Latest | Document and asset storage | Scalable storage with CloudFront integration for global distribution |
-| Authentication | AWS Cognito | Latest | User management and OAuth | GitHub OAuth integration with minimal implementation complexity |
+| File Storage | Docker Volumes | Latest | Document and asset storage | Local persistent storage mapped to project directory structure |
+| Authentication | Custom JWT | Latest | User management with email/password | Simple email-based authentication with JWT tokens and Redis sessions |
 | Frontend Testing | Vitest + Testing Library | Latest | Component and unit testing | Fast execution with excellent React component testing support |
 | Backend Testing | pytest + FastAPI TestClient | Latest | API and service testing | Comprehensive async testing support for FastAPI applications |
 | E2E Testing | Playwright | Latest | Cross-browser integration testing | Excellent support for complex visualization testing and interactions |
 | Build Tool | Vite | 5.0+ | Fast frontend builds and HMR | Superior performance for large TypeScript codebases with complex dependencies |
 | Bundler | Vite (Rollup) | Latest | Production optimized bundles | Tree shaking and code splitting optimized for visualization libraries |
-| IaC Tool | AWS CDK | 2.100+ | Infrastructure as code | Type-safe infrastructure definitions with excellent AWS service integration |
-| CI/CD | GitHub Actions | Latest | Automated testing and deployment | Native GitHub integration with repository-based workflows |
-| Monitoring | AWS CloudWatch + DataDog | Latest | Application performance monitoring | Comprehensive logging and metrics with custom dashboard support |
-| Logging | Winston + CloudWatch Logs | Latest | Structured application logging | Centralized logging with queryable structured data for debugging |
+| IaC Tool | Docker Compose | Latest | Container orchestration | Local development environment with multi-container application management |
+| CI/CD | GitHub Actions | Latest | Automated testing | Native GitHub integration for testing workflows (no deployment needed for MVP) |
+| Monitoring | Prometheus + Grafana | Latest | Local application monitoring | Self-hosted monitoring stack within Docker environment |
+| Logging | Winston + Local Files | Latest | Structured application logging | Local logging with mapped volumes for debugging and development |
 | CSS Framework | Tailwind CSS | 3.3+ | Utility-first styling | Rapid development with consistent design system integration |
 | Visualization Engine | Mermaid.js | 10.6+ | Diagram generation and rendering | GitHub-compatible diagrams with extensive customization options |

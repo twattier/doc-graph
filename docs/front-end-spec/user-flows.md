@@ -28,7 +28,7 @@ graph TD
 ```
 
 ### Edge Cases & Error Handling:
-- Private repository access denied → Clear OAuth prompt with scope explanation
+- Private repository access denied → Clear message explaining public repository requirement
 - Large repository timeout → Progress indicators with partial loading capabilities
 - Malformed template detection → Manual override options with guidance
 - Network interruption during import → Resume capability with progress preservation
@@ -88,7 +88,7 @@ graph TD
     F --> C
     G --> H[GitHub Integration Prompt]
     H --> I{Direct GitHub Integration?}
-    I -->|Yes| J[OAuth GitHub Connection]
+    I -->|Yes| J[User Registration/Login]
     I -->|No| K[Manual Copy/Download]
     J --> L[Select Target Repository]
     L --> M[Choose Integration Method]
@@ -101,6 +101,6 @@ graph TD
 - Mermaid generation failure → Fallback export formats with clear error messaging
 - GitHub integration API errors → Graceful fallback to manual export with troubleshooting guidance
 - Large diagram export timeout → Progressive generation with partial export options
-- Invalid GitHub permissions → Clear permission requirements with re-authorization flow
+- Invalid repository URL → Clear format requirements and validation guidance
 
 **Notes**: Export functionality is essential for DocGraph's integration into existing workflows and stakeholder communication.
