@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router-dom';
 import { HomePage } from '../pages/HomePage';
+import { RepositoryImportPage } from '../pages/RepositoryImportPage';
 import { Layout } from '../components/Layout';
 
 export function App() {
@@ -7,6 +8,7 @@ export function App() {
     <Layout>
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/import" element={<RepositoryImportPage />} />
         <Route
           path="/about"
           element={

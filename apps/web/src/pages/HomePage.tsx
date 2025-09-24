@@ -1,4 +1,5 @@
 import { Button } from '../components/ui/button';
+import { Link } from 'react-router-dom';
 
 export function HomePage() {
   return (
@@ -13,14 +14,18 @@ export function HomePage() {
         </p>
         <div className="mt-5 max-w-md mx-auto sm:flex sm:justify-center md:mt-8">
           <div className="rounded-md shadow">
-            <Button size="lg" className="w-full md:px-10">
-              Get Started
-            </Button>
+            <Link to="/import">
+              <Button size="lg" className="w-full md:px-10">
+                Import Repository
+              </Button>
+            </Link>
           </div>
           <div className="mt-3 rounded-md shadow sm:mt-0 sm:ml-3">
-            <Button variant="outline" size="lg" className="w-full md:px-10">
-              Learn More
-            </Button>
+            <Link to="/about">
+              <Button variant="outline" size="lg" className="w-full md:px-10">
+                Learn More
+              </Button>
+            </Link>
           </div>
         </div>
       </div>

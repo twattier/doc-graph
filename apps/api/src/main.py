@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .routes import health, documents
+from .routes import health, documents, repositories
 from .config import get_settings
 from .database import init_postgres_connection, init_redis_connection, init_neo4j_connection, close_database_connections
 
@@ -71,6 +71,7 @@ def create_app() -> FastAPI:
     # Include routers
     app.include_router(health.router, prefix="/health", tags=["health"])
     app.include_router(documents.router, prefix="/api/documents", tags=["documents"])
+    app.include_router(repositories.router, tags=["repositories"])
 
     # Global exception handler
     @app.exception_handler(Exception)

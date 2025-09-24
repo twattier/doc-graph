@@ -4,7 +4,12 @@ Base models and schemas for DocGraph API
 from datetime import datetime
 from typing import Optional
 
+from sqlalchemy import Column, String, DateTime
+from sqlalchemy.ext.declarative import declarative_base
 from pydantic import BaseModel, Field
+
+# SQLAlchemy Base for database models
+Base = declarative_base()
 
 
 class BaseSchema(BaseModel):

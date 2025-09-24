@@ -197,3 +197,7 @@ async def health_check_neo4j() -> dict:
             "response_time_ms": None,
             "details": str(e)
         }
+
+
+# Alias for compatibility with routes
+get_async_db = get_postgres_session

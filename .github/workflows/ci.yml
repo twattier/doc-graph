@@ -9,6 +9,11 @@ on:
 env:
   NODE_VERSION: '18'
   PYTHON_VERSION: '3.11'
+  # Test environment ports (standard ports for CI)
+  TEST_POSTGRES_PORT: 5432
+  TEST_REDIS_PORT: 6379
+  TEST_NEO4J_HTTP_PORT: 7474
+  TEST_NEO4J_BOLT_PORT: 7687
 
 jobs:
   # Lint and format checks
@@ -75,7 +80,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
         ports:
-          - 5432:5432
+          - ${{ env.TEST_POSTGRES_PORT }}:5432
 
       redis:
         image: redis:7-alpine
@@ -85,7 +90,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
         ports:
-          - 6379:6379
+          - ${{ env.TEST_REDIS_PORT }}:6379
 
       neo4j:
         image: neo4j:5.15
@@ -97,8 +102,8 @@ jobs:
           --health-timeout 5s
           --health-retries 5
         ports:
-          - 7474:7474
-          - 7687:7687
+          - ${{ env.TEST_NEO4J_HTTP_PORT }}:7474
+          - ${{ env.TEST_NEO4J_BOLT_PORT }}:7687
 
     steps:
       - name: Checkout code
@@ -133,11 +138,11 @@ jobs:
           cd apps/api
           pytest tests/ -v --cov=src --cov-report=xml
         env:
-          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/docgraph_test
-          NEO4J_URI: bolt://localhost:7687
+          DATABASE_URL: postgresql://test_user:test_password@localhost:${{ env.TEST_POSTGRES_PORT }}/docgraph_test
+          NEO4J_URI: bolt://localhost:${{ env.TEST_NEO4J_BOLT_PORT }}
           NEO4J_USER: neo4j
           NEO4J_PASSWORD: test_password
-          REDIS_URL: redis://localhost:6379
+          REDIS_URL: redis://localhost:${{ env.TEST_REDIS_PORT }}
           JWT_SECRET: test-secret-key
 
       - name: Upload coverage to Codecov
