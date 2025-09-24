@@ -23,6 +23,7 @@ from ..models.repository import (
 )
 from ..services.git_service import GitService, GitOperationError
 from ..services.repository_service import RepositoryService
+from .users import get_current_user
 
 router = APIRouter(prefix="/api/repositories", tags=["repositories"])
 
@@ -92,6 +93,11 @@ async def import_repository_background(import_id: str, url: str, repository_id: 
             imported_at=datetime.utcnow(),
         )
 
+        # Get user email from import job
+        result = await db.execute(select(ImportJob).where(ImportJob.id == import_id))
+        import_job = result.scalar_one()
+        repository.user_email = import_job.user_email
+
         db.add(repository)
 
         # Update import job to completed
@@ -147,6 +153,7 @@ async def import_repository(
     request: RepositoryImportRequest,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_async_db),
+    current_user = Depends(get_current_user),
 ):
     """
     Start importing a Git repository.
@@ -174,6 +181,7 @@ async def import_repository(
         progress=0,
         message="Import request received",
         started_at=datetime.utcnow(),
+        user_email=current_user.email,
     )
 
     db.add(import_job)
@@ -239,16 +247,18 @@ async def get_import_status(
 @router.get("", response_model=List[RepositoryResponse])
 async def list_repositories(
     db: AsyncSession = Depends(get_async_db),
+    current_user = Depends(get_current_user),
     limit: int = 50,
     offset: int = 0,
 ):
     """
-    List all imported repositories.
+    List user's imported repositories.
 
-    Returns a paginated list of repositories with their metadata and status.
+    Returns a paginated list of repositories owned by the current user.
     """
     result = await db.execute(
         select(Repository)
+        .where(Repository.user_email == current_user.email)
         .order_by(Repository.imported_at.desc())
         .limit(limit)
         .offset(offset)
