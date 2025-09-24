@@ -62,6 +62,11 @@ run_tests() {
     echo
 }
 
+# Docker configuration
+DOCKER_COMPOSE_FILE="docker-compose.yml"
+API_SERVICE_NAME="api"
+PROJECT_ROOT="$(dirname "$0")/../../../"
+
 # Default test suite selection
 SUITE="all"
 COVERAGE=false
@@ -166,12 +171,20 @@ echo
 
 # Check Docker environment
 print_color $BLUE "Checking Docker environment..."
-if ! docker info &> /dev/null; then
-    print_color $RED "Error: Docker daemon is not running"
+
+# Check if Docker command works (more reliable than docker info)
+if ! docker ps &> /dev/null; then
+    print_color $RED "Error: Docker daemon is not running or not accessible"
+    print_color $YELLOW "Please ensure Docker is running and accessible"
     exit 1
 fi
 
 print_color $GREEN "✓ Docker is available and running"
+
+# Change to the project root directory
+print_color $BLUE "Changing to project root directory..."
+cd "$PROJECT_ROOT"
+print_color $GREEN "✓ Working directory: $(pwd)"
 
 # Check if compose file exists
 if [ ! -f "$DOCKER_COMPOSE_FILE" ]; then
