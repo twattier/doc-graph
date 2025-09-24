@@ -38,6 +38,23 @@ class Repository(Base):
     user_email = Column(String, nullable=True)
 
 
+class RepositoryVersion(Base):
+    """Database model for repository version history."""
+
+    __tablename__ = "repository_versions"
+
+    id = Column(String, primary_key=True)
+    repository_id = Column(String, nullable=False)
+    commit_hash = Column(String, nullable=False)
+    branch = Column(String, nullable=False)
+    file_count = Column(Integer, default=0)
+    total_size = Column(Integer, default=0)
+    changes_summary = Column(Text, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class ImportJob(Base):
     """Database model for tracking import jobs."""
 

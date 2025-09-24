@@ -14,6 +14,7 @@ from ..database import get_async_db
 from ..models.repository import (
     Repository,
     ImportJob,
+    RepositoryVersion,
     RepositoryResponse,
     ImportJobResponse,
     RepositoryImportRequest,
@@ -21,11 +22,13 @@ from ..models.repository import (
     ImportStatusResponse,
 )
 from ..services.git_service import GitService, GitOperationError
+from ..services.repository_service import RepositoryService
 
 router = APIRouter(prefix="/api/repositories", tags=["repositories"])
 
-# Initialize Git service
+# Initialize services
 git_service = GitService()
+repository_service = RepositoryService(git_service)
 
 
 # Background task storage for import progress
@@ -365,3 +368,107 @@ async def delete_repository(
     await db.commit()
 
     return {"message": "Repository deleted successfully"}
+
+
+@router.get("/{repository_id}/versions")
+async def get_repository_versions(
+    repository_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    limit: int = 10,
+):
+    """Get version history for a repository."""
+    # Check if repository exists
+    result = await db.execute(select(Repository).where(Repository.id == repository_id))
+    repository = result.scalar_one_or_none()
+
+    if not repository:
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    # Get versions
+    versions_result = await db.execute(
+        select(RepositoryVersion)
+        .where(RepositoryVersion.repository_id == repository_id)
+        .order_by(RepositoryVersion.created_at.desc())
+        .limit(limit)
+    )
+    versions = versions_result.scalars().all()
+
+    return [
+        {
+            "id": version.id,
+            "commit_hash": version.commit_hash,
+            "branch": version.branch,
+            "file_count": version.file_count,
+            "total_size": version.total_size,
+            "changes_summary": version.changes_summary,
+            "created_at": version.created_at,
+        }
+        for version in versions
+    ]
+
+
+@router.post("/{repository_id}/check-updates")
+async def check_repository_updates(
+    repository_id: str,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Check if a repository has updates available."""
+    # Check if repository exists
+    result = await db.execute(select(Repository).where(Repository.id == repository_id))
+    repository = result.scalar_one_or_none()
+
+    if not repository:
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    # Check for updates using repository service
+    has_updates = await repository_service.check_for_updates(db, repository_id)
+
+    return {
+        "repository_id": repository_id,
+        "has_updates": has_updates,
+        "current_commit": repository.commit_hash,
+        "last_synced": repository.last_synced_at
+    }
+
+
+@router.get("/storage/usage")
+async def get_storage_usage():
+    """Get current storage usage statistics."""
+    usage = await repository_service.get_storage_usage()
+    return usage
+
+
+@router.post("/storage/cleanup")
+async def cleanup_storage(
+    db: AsyncSession = Depends(get_async_db),
+    threshold: float = 80.0
+):
+    """Clean up storage if usage exceeds threshold."""
+    cleanup_performed = await repository_service.cleanup_storage_if_needed(db, threshold)
+
+    if cleanup_performed:
+        usage = await repository_service.get_storage_usage()
+        return {
+            "cleanup_performed": True,
+            "message": "Storage cleanup completed",
+            "current_usage": usage
+        }
+    else:
+        return {
+            "cleanup_performed": False,
+            "message": "Storage cleanup not needed"
+        }
+
+
+@router.put("/{repository_id}/restore")
+async def restore_repository(
+    repository_id: str,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Restore an archived repository by re-cloning it."""
+    success = await repository_service.restore_repository(db, repository_id)
+
+    if success:
+        return {"message": "Repository restored successfully"}
+    else:
+        raise HTTPException(status_code=400, detail="Failed to restore repository or repository not archived")
